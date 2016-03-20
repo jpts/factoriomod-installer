@@ -1,0 +1,97 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use MIME::Base64;
+use Logging::Simple;
+use JSON::Parse ':all';
+use File::Fetch;
+use File::Copy;
+#use Data::Dumper;
+
+# This is the download location, including trailing slash
+my $mod_dir = "/usr/games/factorio/mods/";
+
+
+my $log = Logging::Simple->new(name => 'FactorioModInstaller', file => '/tmp/fmi.log', level => 7);
+my $terminal = 0;
+if (-t STDIN) {$terminal = 1;}
+
+if ( @ARGV eq 1 )
+{
+  # get & parse uri
+  my $uri = $ARGV[0];
+  $uri =~ /factoriomods:\/\/([\w].*)/;
+  my $enc = $1;
+
+  # json decode
+  my $json = decode_base64($enc);
+  if (!valid_json($json))
+  {
+    $log->error("Could not parse URI. Exiting.");
+    exit(-1);
+  }
+  my $data = parse_json($json);
+  $log->info("Found '$data->{'title'}' mod");
+  
+  # get most recent release
+  my $releases = $data->{'releases'};
+  my $recent = $data->{'releases'}[0];
+  foreach my $ref (@{$releases})
+  {
+    if ( $ref->{'id'} gt $recent->{'id'} )
+    {
+      $recent = $ref;
+    }
+  }
+
+  # get download url & strip any https
+  my $durl = $recent->{'files'}[0]{'url'};
+  $durl =~ s/https:\/\//http:\/\//;
+  
+  # create sensible filename
+  my $fname = $data->{'title'}."-".$recent->{'version'}.".zip";
+  $fname =~ s/ /-/g;          #remove spaces
+  $fname =~ s/[^\w\-.]//g;    #remove non-ascii
+  $fname =~ s/([A-Z])/\L$1/g; #to lowercase
+  if (-f $mod_dir.$fname)
+  {
+    $log->error("File already exists. Aborting.");
+    exit(-1);
+  }
+  
+  # download file 
+  $log->info("Downloading $data->{'title'}, $durl");
+  my $err;
+  my $ff = File::Fetch->new(uri => $durl, tempdir_root => '/tmp');
+  my $loc = $ff->fetch(to => $mod_dir) or $err = $ff->error;
+  if (defined($loc))
+  {
+    move($loc,$mod_dir.$fname) or ($log->error("File move failed: $!" && exit(-1)));
+    $log->info("Success: ".$mod_dir.$fname);
+    msg("$fname installed.");
+  }
+  else
+  {
+    $log->error("Download error: $err");
+    exit(-1);
+  }
+
+}
+else
+{
+  $log->error("Wrong script args: ".join(',',@ARGV));
+  $log->error("Expecting one argument in the form 'factoriomods://BASE64ENCODEDJSON");
+}
+
+
+sub msg {
+  if ($terminal)
+  {
+    print "$_[0]\n";
+  }
+  else
+  {
+    `notify-send "Factorio Mod Installer" "$_[0]"`; 
+  }
+}

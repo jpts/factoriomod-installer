@@ -1,0 +1,7 @@
+[Desktop Entry]
+Name=Factorio Mod Installer
+Exec=factoriomod-installer %u
+Comment=Install Factorio Mods from http://factoriomods.com
+Type=Application
+Categories=GNOME;Utility;
+MimeType=x-scheme-handler/factoriomods
