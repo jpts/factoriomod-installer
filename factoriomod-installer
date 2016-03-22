@@ -6,7 +6,7 @@ use MIME::Base64;
 use Logging::Simple;
 use JSON::Parse ':all';
 use File::Fetch;
-use File::Copy;
+use File::Basename;
 #use Data::Dumper;
 
 # This is the download location, including trailing slash
@@ -50,11 +50,8 @@ if ( @ARGV eq 1 )
   $durl =~ s/https:\/\//http:\/\//;
   
   # create sensible filename
-  my $fname = $data->{'title'}."-".$recent->{'version'}.".zip";
-  $fname =~ s/ /-/g;          #remove spaces
-  $fname =~ s/[^\w\-.]//g;    #remove non-ascii
-  $fname =~ s/([A-Z])/\L$1/g; #to lowercase
-  if (-f $mod_dir.$fname)
+  (my $dname,,) = fileparse($durl);
+  if (-f $mod_dir.$dname)
   {
     $log->error("File already exists. Aborting.");
     exit(-1);
@@ -67,9 +64,8 @@ if ( @ARGV eq 1 )
   my $loc = $ff->fetch(to => $mod_dir) or $err = $ff->error;
   if (defined($loc))
   {
-    move($loc,$mod_dir.$fname) or ($log->error("File move failed: $!" && exit(-1)));
-    $log->info("Success: ".$mod_dir.$fname);
-    msg("$fname installed.");
+    $log->info("Success: ".$loc);
+    msg($data->{'title'}." installed.");
   }
   else
   {
