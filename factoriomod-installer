@@ -12,6 +12,10 @@ use WWW::Curl::Easy;
 # This is the download location, including trailing slash
 my $mod_dir = "/usr/games/factorio/mods/";
 
+# init logging
+my $log = Logging::Simple->new(name => 'FactorioModInstaller', file => '/tmp/fmi.log', level => 7);
+BEGIN { $SIG{__DIE__} = sub { $log->critical($_[0]) }; }
+
 # init curl
 my $curl = WWW::Curl::Easy->new();
 $curl->setopt(CURLOPT_HEADERFUNCTION, \&write_callback);
@@ -20,7 +24,6 @@ my (@head,@body);
 $curl->setopt(CURLOPT_WRITEHEADER, \@head);
 $curl->setopt(CURLOPT_WRITEDATA, \@body);
 
-my $log = Logging::Simple->new(name => 'FactorioModInstaller', file => '/tmp/fmi.log', level => 7);
 my $terminal = 0;
 if (-t STDIN) {$terminal = 1;}
 
@@ -35,8 +38,7 @@ if ( @ARGV eq 1 )
   my $json = decode_base64($enc);
   if (!valid_json($json))
   {
-    $log->error("Could not parse URI. Exiting.");
-    exit(-1);
+    die("Could not parse URI.");
   }
   my $data = parse_json($json);
   $log->info("Found '$data->{'title'}' mod");
@@ -59,8 +61,7 @@ if ( @ARGV eq 1 )
   $durl =~ /([^\/\\&\?]+\.\w{3,4})(?=([\?&].*$|$))/;
   if (-f $mod_dir.$1)
   {
-    $log->error("File already exists. Aborting.");
-    exit(-1);
+    die("File already exists. Aborting.");
   }
 
   # download file
@@ -73,15 +74,14 @@ if ( @ARGV eq 1 )
   }
   else
   {
-    $log->error("Error: ".$curl->strerror($path)." ".$curl->errbuf);
-    exit(-1);
+    die("Error: ".$curl->strerror($path)." ".$curl->errbuf);
   }
 
 }
 else
 {
   $log->error("Wrong script args: ".join(',',@ARGV));
-  $log->error("Expecting one argument in the form 'factoriomods://BASE64ENCODEDJSON");
+  die("Expecting one argument in the form 'factoriomods://BASE64ENCODEDJSON");
 }
 
 
@@ -123,16 +123,14 @@ sub download {
     }
     else
     {
-      $log->error("Couldn't find filename");
-      exit(-1);
+      die("Couldn't find filename");
     }
     $log->info("File: $content_name, length ".length($body));
 
     # double check here now we have headers
     if (-f $dir.$content_name)
     {
-      $log->error("File already exists. Aborting.");
-      exit(-1);
+      die("File already exists. Aborting.");
     }
 
     my $path = $dir."/".$content_name;
@@ -149,9 +147,9 @@ sub download {
 }
 
 sub write_callback {
-    my ($chunk,$variable)=@_;
-    # store each chunk/line separately
-    # This should be faster than using $$varable .= $chunk;
-    push @{$variable}, $chunk;
-    return length($chunk);
+  my ($chunk,$variable)=@_;
+  # store each chunk/line separately
+  # This should be faster than using $$varable .= $chunk;
+  push @{$variable}, $chunk;
+  return length($chunk);
 }
